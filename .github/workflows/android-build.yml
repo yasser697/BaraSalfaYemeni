@@ -29,13 +29,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
+          packages: platform-tools
           accept-android-sdk-licenses: false
           log-accepted-android-sdk-licenses: false
 
       - name: Accept Android SDK licenses
-        shell: bash
-        run: |
-          yes | sdkmanager --licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Install Android SDK packages
         run: |
@@ -44,21 +43,22 @@ jobs:
             "platforms;android-34" \
             "build-tools;34.0.0"
 
-      - name: Set up Gradle
+      - name: Set up Gradle 8.5
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: "8.2.1"
+          gradle-version: "8.5"
 
       - name: Build APK
         run: |
           gradle --no-daemon --stacktrace clean assembleDebug assembleRelease
 
-      - name: Verify APK
+      - name: Verify APK files
         run: |
           test -f app/build/outputs/apk/debug/app-debug.apk
           test -f app/build/outputs/apk/release/app-release.apk
+          echo "Both APK files were generated successfully."
 
-      - name: Upload APK
+      - name: Upload APK files
         uses: actions/upload-artifact@v4
         with:
           name: bara-salfa-android-apks
