@@ -47,7 +47,7 @@ jobs:
       - name: Extract Android project
         shell: bash
         run: |
-          ZIP_FILE="bara-salfa-android-v1.2-build-fixed.zip"
+          ZIP_FILE="BaraSalfa-Android-Logo-Fixed.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
             echo "ERROR: Android project ZIP file not found!"
