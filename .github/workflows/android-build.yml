@@ -21,23 +21,41 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.5'
 
-      - name: Build Debug & Release APK (v1.2)
-        run: gradle assembleDebug assembleRelease --no-daemon
+      - name: Prepare Project Structure & Build APK
+        run: |
+          # إذا تم رفع الملف المضغوط مباشرة بدون فك الضغط، يقوم بفك ضغطه تلقائياً
+          if [ ! -f "settings.gradle" ]; then
+            ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+            if [ -n "$ZIP_FILE" ]; then
+              echo "Found ZIP file: $ZIP_FILE - extracting..."
+              unzip -o "$ZIP_FILE" -d .
+            fi
+          fi
 
-      - name: Upload Debug APK
+          # البحث عن مكان ملف settings.gradle في حال كان داخل مجلد فرعي
+          GRADLE_DIR=$(dirname $(find . -name "settings.gradle" | head -n 1))
+          echo "Building in directory: $GRADLE_DIR"
+          cd "$GRADLE_DIR"
+
+          # قبول تراخيص Android SDK وبناء نسخة التثبيت
+          yes | sdkmanager --licenses || true
+          gradle assembleDebug assembleRelease --no-daemon --stacktrace
+
+          # نسخ ملفات الـ APK الناتجة إلى مجلد موحد للتحميل
+          mkdir -p "$GITHUB_WORKSPACE/output-apk"
+          find . -name "*.apk" -exec cp {} "$GITHUB_WORKSPACE/output-apk/" \;
+          ls -la "$GITHUB_WORKSPACE/output-apk/"
+
+      - name: Upload Ready APK (v1.2)
         uses: actions/upload-artifact@v4
         with:
-          name: Bara-Salfa-Yemeni-v1.2-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload Release APK (Signed)
-        uses: actions/upload-artifact@v4
-        with:
-          name: Bara-Salfa-Yemeni-v1.2-Release-APK
-          path: app/build/outputs/apk/release/app-release.apk
-          
+          name: Bara-Salfa-Yemeni-v1.2-APK
+          path: output-apk/*.apk
