@@ -1,61 +1,59 @@
-name: Build Bara Salfa Android APK v1.2
+name: Build Bara Salfa Android APK
 
 on:
   push:
-    branches: [ "**" ]
+    branches:
+      - "**"
   pull_request:
-    branches: [ "**" ]
+    branches:
+      - "**"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
+          java-version: "17"
 
-      - name: Setup Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0"
+          yes | sdkmanager --licenses
+
+      - name: Set up Gradle 8.2.1
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.5'
+          gradle-version: "8.2.1"
 
-      - name: Prepare Project Structure & Build APK
+      - name: Build debug and release APKs
+        run: gradle --no-daemon --stacktrace clean assembleDebug assembleRelease
+
+      - name: Verify APK outputs
         run: |
-          # إذا تم رفع الملف المضغوط مباشرة بدون فك الضغط، يقوم بفك ضغطه تلقائياً
-          if [ ! -f "settings.gradle" ]; then
-            ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-            if [ -n "$ZIP_FILE" ]; then
-              echo "Found ZIP file: $ZIP_FILE - extracting..."
-              unzip -o "$ZIP_FILE" -d .
-            fi
-          fi
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          test -f app/build/outputs/apk/release/app-release.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
 
-          # البحث عن مكان ملف settings.gradle في حال كان داخل مجلد فرعي
-          GRADLE_DIR=$(dirname $(find . -name "settings.gradle" | head -n 1))
-          echo "Building in directory: $GRADLE_DIR"
-          cd "$GRADLE_DIR"
-
-          # قبول تراخيص Android SDK وبناء نسخة التثبيت
-          yes | sdkmanager --licenses || true
-          gradle assembleDebug assembleRelease --no-daemon --stacktrace
-
-          # نسخ ملفات الـ APK الناتجة إلى مجلد موحد للتحميل
-          mkdir -p "$GITHUB_WORKSPACE/output-apk"
-          find . -name "*.apk" -exec cp {} "$GITHUB_WORKSPACE/output-apk/" \;
-          ls -la "$GITHUB_WORKSPACE/output-apk/"
-
-      - name: Upload Ready APK (v1.2)
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Bara-Salfa-Yemeni-v1.2-APK
-          path: output-apk/*.apk
+          name: bara-salfa-android-apks
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
