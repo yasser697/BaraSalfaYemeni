@@ -31,8 +31,7 @@ jobs:
           log-accepted-android-sdk-licenses: false
           packages: platform-tools
 
-      - name: Install required Android SDK packages
-        shell: bash
+      - name: Install Android SDK packages
         run: |
           sdkmanager --install \
             "platforms;android-34" \
@@ -44,49 +43,80 @@ jobs:
         with:
           gradle-version: "8.5"
 
+      # فك ضغط مشروع Android
+      - name: Extract Android project
+        shell: bash
+        run: |
+          ZIP_FILE="bara-salfa-android-v1.2-build-fixed.zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: Android project ZIP file not found!"
+            ls -la
+            exit 1
+          fi
+
+          mkdir -p android-project
+          unzip -q "$ZIP_FILE" -d android-project
+
+          echo "ZIP extracted successfully."
+          echo "Extracted files:"
+          find android-project -maxdepth 4 -type f | head -100
+
+      # تحديد مكان ملفات Gradle
       - name: Locate Gradle project
         shell: bash
         run: |
           echo "Searching for Gradle settings file..."
 
           SETTINGS_FILE=""
+
           while IFS= read -r file; do
             SETTINGS_FILE="$file"
             break
-          done < <(find . -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) -not -path "*/.gradle/*" -print)
+          done < <(find android-project -type f \
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
+            -not -path "*/.gradle/*" -print)
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: Could not find settings.gradle or settings.gradle.kts."
-            echo "Repository files:"
-            find . -maxdepth 4 -type f | sort | head -200
+            echo "ERROR: Gradle settings file not found after extraction."
+            find android-project -maxdepth 6 -type f | sort
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
           echo "Gradle project found at: $PROJECT_DIR"
 
-          if [ ! -f "$PROJECT_DIR/app/build.gradle" ] && [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
-            echo "ERROR: The Gradle root was found, but app/build.gradle(.kts) is missing."
-            find "$PROJECT_DIR" -maxdepth 3 -type f | sort
+          if [ ! -f "$PROJECT_DIR/app/build.gradle" ] && \
+             [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+            echo "ERROR: app/build.gradle is missing."
+            find "$PROJECT_DIR" -maxdepth 4 -type f | sort
             exit 1
           fi
 
+      # بناء التطبيق
       - name: Build APKs
         shell: bash
         run: |
           cd "$PROJECT_DIR"
+
           gradle --no-daemon --stacktrace clean assembleDebug assembleRelease
 
+      # التأكد من إنشاء الملفات
       - name: Verify APK outputs
         shell: bash
         run: |
           test -f "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+
           test -f "$PROJECT_DIR/app/build/outputs/apk/release/app-release.apk"
+
           ls -lh \
             "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" \
             "$PROJECT_DIR/app/build/outputs/apk/release/app-release.apk"
 
+      # رفع ملفات APK
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
